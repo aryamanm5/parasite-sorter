@@ -48,6 +48,7 @@ sessions_data = {}
 sessions_lock = threading.Lock()
 
 CLASS_MAPPING = {
+    '0': '10-Platelet',
     '1': '1-ER',
     '2': '2-MR',
     '3': '3-LR',
@@ -1465,7 +1466,7 @@ HTML_TEMPLATE = """
 
                 <div class="sidebar-controls">
                     <div class="panel-card">
-                        <h3>Hotkeys 1-9</h3>
+                        <h3>Hotkeys 0-9</h3>
 
                         <div class="badge-item"><div class="badge-left"><span class="key-cap">1</span> ER</div><span class="badge-count" id="count-1">0</span></div>
                         <div class="badge-item"><div class="badge-left"><span class="key-cap">2</span> MR</div><span class="badge-count" id="count-2">0</span></div>
@@ -1476,6 +1477,7 @@ HTML_TEMPLATE = """
                         <div class="badge-item"><div class="badge-left"><span class="key-cap">7</span> Merozoite</div><span class="badge-count" id="count-7">0</span></div>
                         <div class="badge-item"><div class="badge-left"><span class="key-cap">8</span> Indeterm</div><span class="badge-count" id="count-8">0</span></div>
                         <div class="badge-item"><div class="badge-left"><span class="key-cap">9</span> Uninfect</div><span class="badge-count" id="count-9">0</span></div>
+                        <div class="badge-item"><div class="badge-left"><span class="key-cap">0</span> Platelet</div><span class="badge-count" id="count-0">0</span></div>
                     </div>
 
                     <div class="panel-card">
@@ -1509,6 +1511,7 @@ HTML_TEMPLATE = """
 
     <script>
         const CLASS_MAP = {
+            '0': '10-Platelet',
             '1': '1-ER',
             '2': '2-MR',
             '3': '3-LR',
@@ -1518,7 +1521,7 @@ HTML_TEMPLATE = """
             '7': '7-Merozoite',
             '8': '8-Indeterminate',
             '9': '9-Uninfected'
-        };
+    };
 
         let state = {
             upload_complete: false,
@@ -1620,7 +1623,7 @@ HTML_TEMPLATE = """
 
                     <div class="metadata-info">
                         <div class="filename-text">${escapeHtml(state.current_image)}</div>
-                        <div class="count-text">Press 1-9 to classify. Use +/− or mouse wheel with Ctrl/Shift to zoom. Double-click image for full preview.</div>
+                        <div class="count-text">Press 0-9 to classify. Use +/− or mouse wheel with Ctrl/Shift to zoom. Double-click image for full preview.</div>
                     </div>
                 `;
             } else {
@@ -1861,7 +1864,7 @@ HTML_TEMPLATE = """
             if (e.ctrlKey || e.metaKey || e.altKey) return;
             if (e.target.tagName === 'INPUT') return;
 
-            if (e.key >= '1' && e.key <= '9') {
+            if (e.key >= '0' && e.key <= '9') {
                 e.preventDefault();
                 classify(e.key);
             } else if (e.key.toLowerCase() === 'z' || e.key === 'Backspace') {
