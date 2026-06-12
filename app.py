@@ -1390,20 +1390,24 @@ HTML_TEMPLATE = """
 
                 <ol class="decision-flow">
                     <li>
+                        <b>Cytoplasm band:nucleus diameter</b>
+                        <span>→ ER/MR/LR</span>
+                    </li>
+                    <li>
                         <b>Pigment granules or Maurer’s clefts?</b>
                         <span>→ MR or LR</span>
                     </li>
                     <li>
-                        <b>Cytoplasm band ≥ nucleus diameter?</b>
-                        <span>→ LR</span>
+                        <b>Cytoplasm minimal, chromatin-dominant, comma/crescent, appliqué, or double-dot</b>
+                        <span>→ ER</span>
                     </li>
                     <li>
-                        <b>Cytoplasm band &gt; ½ nucleus diameter?</b>
+                        <b>Perfect “textbook” ring-shape skews</b>
                         <span>→ MR</span>
                     </li>
                     <li>
-                        <b>Cytoplasm minimal, chromatin-dominant, comma/crescent, appliqué, or double-dot?</b>
-                        <span>→ ER</span>
+                        <b>Dense stippling, hemozoin, amoeboid</b>
+                        <span>→ LR</span>
                     </li>
                 </ol>
             </div>
