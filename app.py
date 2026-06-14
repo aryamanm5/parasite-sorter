@@ -1676,9 +1676,9 @@ HTML_TEMPLATE = """
                         <h3>Actions</h3>
                         <button id="undo-btn" class="btn btn-undo" onclick="executeUndo()" disabled>↩️ Undo Z</button>
                         <button id="download-btn" class="btn btn-download" onclick="downloadSorted()" disabled>📥 Download</button>
-                        <button id="save-progress-btn" class="btn btn-save-progress" onclick="downloadProgress()" disabled>💾 Save Progress CSV</button>
+                        <button id="save-progress-btn" class="btn btn-save-progress" onclick="downloadProgress()" disabled>💾 Save Progress</button>
                         <input type="file" id="progress-input" accept=".csv">
-                        <button id="upload-progress-btn" class="btn btn-upload-progress" onclick="document.getElementById('progress-input').click()" disabled>📤 Upload Progress CSV</button>
+                        <button id="upload-progress-btn" class="btn btn-upload-progress" onclick="document.getElementById('progress-input').click()" disabled>📤 Upload Progress</button>
                         <button class="btn btn-reset" onclick="resetSession()">🔄 Reset</button>
                     </div>
                 </div>
