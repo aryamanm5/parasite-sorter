@@ -3,6 +3,8 @@ import zipfile
 import base64
 import shutil
 import uuid
+import csv
+import io
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
 from flask import Flask, render_template_string, jsonify, request, send_file, session
@@ -265,6 +267,25 @@ def get_sorted_counts(sorted_dir):
             counts[class_name] = 0
 
     return counts
+
+
+def get_progress_rows(sorted_dir):
+    rows = []
+
+    for key, class_name in CLASS_MAPPING.items():
+        class_dir = os.path.join(sorted_dir, class_name)
+
+        if not os.path.exists(class_dir):
+            continue
+
+        for img_file in get_images_list(class_dir):
+            rows.append({
+                'filename': img_file,
+                'class_key': key,
+                'class_name': class_name
+            })
+
+    return rows
 
 
 def get_builtin_visual_guide_info():
@@ -644,6 +665,137 @@ def download_sorted():
 
     except Exception as e:
         return f"Download error: {str(e)}", 500
+
+
+@app.route('/download_progress', methods=['GET'])
+def download_progress():
+    session_data = get_session_data()
+    progress_rows = get_progress_rows(session_data['sorted_dir'])
+
+    if not progress_rows:
+        return "No progress to save", 400
+
+    try:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=['filename', 'class_key', 'class_name'])
+        writer.writeheader()
+        writer.writerows(progress_rows)
+
+        csv_bytes = io.BytesIO(output.getvalue().encode('utf-8'))
+        csv_bytes.seek(0)
+
+        return send_file(
+            csv_bytes,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name='parasite_sorter_progress.csv'
+        )
+
+    except Exception as e:
+        return f"Progress download error: {str(e)}", 500
+
+
+@app.route('/upload_progress', methods=['POST'])
+def upload_progress():
+    session_data = get_session_data()
+
+    if not session_data['upload_complete']:
+        return jsonify({'success': False, 'message': 'Upload the image ZIP before loading progress.'}), 400
+
+    if 'progress_csv' not in request.files:
+        return jsonify({'success': False, 'message': 'No progress CSV uploaded'}), 400
+
+    file = request.files['progress_csv']
+
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
+
+    if not file.filename.lower().endswith('.csv'):
+        return jsonify({'success': False, 'message': 'Please upload a CSV progress file'}), 400
+
+    try:
+        csv_text = file.read().decode('utf-8-sig')
+        reader = csv.DictReader(io.StringIO(csv_text))
+
+        if not reader.fieldnames or 'filename' not in reader.fieldnames:
+            return jsonify({'success': False, 'message': 'Progress CSV must include a filename column'}), 400
+
+        applied = 0
+        missing = []
+        invalid = []
+
+        for row_index, row in enumerate(reader, start=2):
+            filename = os.path.basename((row.get('filename') or '').strip())
+            class_key = (row.get('class_key') or '').strip()
+            class_name = (row.get('class_name') or '').strip()
+
+            if class_key in CLASS_MAPPING:
+                target_subfolder = CLASS_MAPPING[class_key]
+            elif class_name in CLASS_MAPPING.values():
+                target_subfolder = class_name
+            else:
+                invalid.append(f"row {row_index}")
+                continue
+
+            if not filename or not allowed_file(filename):
+                invalid.append(f"row {row_index}")
+                continue
+
+            src_path = os.path.join(session_data['unsorted_dir'], filename)
+            target_dir = os.path.join(session_data['sorted_dir'], target_subfolder)
+            dst_path = os.path.join(target_dir, filename)
+            stored_name = filename
+
+            if not os.path.exists(src_path):
+                already_sorted_path = os.path.join(target_dir, filename)
+
+                if os.path.exists(already_sorted_path):
+                    continue
+
+                missing.append(filename)
+                continue
+
+            if os.path.exists(dst_path):
+                base, ext = os.path.splitext(filename)
+                counter = 1
+
+                while os.path.exists(os.path.join(target_dir, f"{base}_{counter}{ext}")):
+                    counter += 1
+
+                stored_name = f"{base}_{counter}{ext}"
+                dst_path = os.path.join(target_dir, stored_name)
+
+            shutil.move(src_path, dst_path)
+            applied += 1
+
+        session_data['history'] = []
+        next_imgs = get_images_list(session_data['unsorted_dir'])
+        sorted_counts = get_sorted_counts(session_data['sorted_dir'])
+
+        message = f'Restored {applied} sorted images from progress CSV'
+
+        if missing:
+            message += f'; {len(missing)} files were not found in the uploaded ZIP'
+
+        if invalid:
+            message += f'; {len(invalid)} rows were invalid'
+
+        return jsonify({
+            'success': True,
+            'message': message,
+            'current_image': next_imgs[0] if next_imgs else None,
+            'remaining_count': len(next_imgs),
+            'history_count': len(session_data['history']),
+            'sorted_counts': sorted_counts,
+            'total_sorted': sum(sorted_counts.values()),
+            'missing_count': len(missing),
+            'invalid_count': len(invalid)
+        })
+
+    except UnicodeDecodeError:
+        return jsonify({'success': False, 'message': 'Progress file must be a readable CSV'}), 400
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Progress upload error: {str(e)}'}), 500
 
 
 @app.route('/reset_session', methods=['POST'])
@@ -1191,6 +1343,26 @@ HTML_TEMPLATE = """
             background-color: #15803d;
         }
 
+        .btn-save-progress {
+            background-color: #0891b2;
+            color: white;
+            margin-top: 6px;
+        }
+
+        .btn-save-progress:hover:not(:disabled) {
+            background-color: #0e7490;
+        }
+
+        .btn-upload-progress {
+            background-color: #7c3aed;
+            color: white;
+            margin-top: 6px;
+        }
+
+        .btn-upload-progress:hover:not(:disabled) {
+            background-color: #6d28d9;
+        }
+
         .btn-reset {
             background-color: #ef4444;
             color: white;
@@ -1504,6 +1676,9 @@ HTML_TEMPLATE = """
                         <h3>Actions</h3>
                         <button id="undo-btn" class="btn btn-undo" onclick="executeUndo()" disabled>↩️ Undo Z</button>
                         <button id="download-btn" class="btn btn-download" onclick="downloadSorted()" disabled>📥 Download</button>
+                        <button id="save-progress-btn" class="btn btn-save-progress" onclick="downloadProgress()" disabled>💾 Save Progress CSV</button>
+                        <input type="file" id="progress-input" accept=".csv">
+                        <button id="upload-progress-btn" class="btn btn-upload-progress" onclick="document.getElementById('progress-input').click()" disabled>📤 Upload Progress CSV</button>
                         <button class="btn btn-reset" onclick="resetSession()">🔄 Reset</button>
                     </div>
                 </div>
@@ -1636,6 +1811,8 @@ HTML_TEMPLATE = """
 
             document.getElementById('undo-btn').disabled = state.history_count === 0;
             document.getElementById('download-btn').disabled = state.total_sorted === 0;
+            document.getElementById('save-progress-btn').disabled = state.total_sorted === 0;
+            document.getElementById('upload-progress-btn').disabled = !state.upload_complete;
         }
 
         async function fetchState() {
@@ -1725,6 +1902,45 @@ HTML_TEMPLATE = """
             } catch(e) {
                 status.textContent = 'Failed';
                 status.className = 'upload-status compact-status error';
+            }
+
+            e.target.value = '';
+        });
+
+        document.getElementById('progress-input').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+
+            if (!file) return;
+
+            const fd = new FormData();
+            fd.append('progress_csv', file);
+
+            try {
+                const res = await fetch('/upload_progress', {
+                    method: 'POST',
+                    body: fd
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast(data.message, data.missing_count > 0 || data.invalid_count > 0);
+
+                    Object.assign(state, {
+                        current_image: data.current_image,
+                        remaining_count: data.remaining_count,
+                        history_count: data.history_count,
+                        sorted_counts: data.sorted_counts,
+                        total_sorted: data.total_sorted
+                    });
+
+                    imageZoom = 1.25;
+                    updateUI();
+                } else {
+                    showToast(data.message, true);
+                }
+            } catch(e) {
+                showToast('Progress upload failed', true);
             }
 
             e.target.value = '';
@@ -1840,6 +2056,12 @@ HTML_TEMPLATE = """
             }
         }
 
+        function downloadProgress() {
+            if (state.total_sorted > 0) {
+                window.location.href = '/download_progress';
+            }
+        }
+
         async function resetSession() {
             if (!confirm('Reset all data?')) return;
 
@@ -1914,5 +2136,5 @@ HTML_TEMPLATE = """
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 5002))
     app.run(host='0.0.0.0', port=port, debug=False)
